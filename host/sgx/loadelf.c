@@ -646,7 +646,10 @@ done:
     return result;
 }
 
-static oe_result_t _patch(oe_enclave_image_t* image, size_t enclave_size)
+static oe_result_t _patch(
+    oe_enclave_image_t* image,
+    oe_sgx_load_context_t* context,
+    size_t enclave_size)
 {
     oe_result_t result = OE_UNEXPECTED;
     oe_sgx_enclave_properties_t* oeprops;
@@ -713,12 +716,12 @@ static oe_result_t _patch(oe_enclave_image_t* image, size_t enclave_size)
             oe_round_up_to_multiple(image->tbss_size, image->tbss_size);
     }
 
-    if (aligned_size > OE_THREAD_LOCAL_SPACE)
-    {
-        OE_TRACE_ERROR(
-            "Thread-local variables exceed available thread-local space.\n");
-        OE_RAISE(OE_FAILURE);
-    }
+    aligned_size = oe_round_up_to_multiple(aligned_size, OE_PAGE_SIZE);
+    _set_uint64_t_symbol_value(
+        image,
+        "td_from_tcs_offset",
+        aligned_size + OE_SGX_NUM_CONTROL_PAGES * OE_PAGE_SIZE);
+    context->num_tls_pages = aligned_size / OE_PAGE_SIZE;
 
     /* Clear the hash when taking the measure */
     memset(oeprops->sigstruct, 0, sizeof(oeprops->sigstruct));
